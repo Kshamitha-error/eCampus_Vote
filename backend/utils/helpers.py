@@ -39,13 +39,53 @@ def check_password(plain, hashed):
     except: return False
 
 
-# ── Resend HTTP API email sender (works on Render free tier) ─────────────────
+# ── Smart email sender — Gmail locally, Resend on Render ─────────────────────
 
 def _send_email(to_email, to_name, subject, body_text):
+    flask_env = os.environ.get("FLASK_ENV", "production")
+
+    if flask_env == "development":
+        # ── LOCAL: use Gmail SMTP ─────────────────────────────────────────
+        _send_via_gmail(to_email, to_name, subject, body_text)
+    else:
+        # ── PRODUCTION: use Resend HTTP API ───────────────────────────────
+        _send_via_resend(to_email, to_name, subject, body_text)
+
+
+def _send_via_gmail(to_email, to_name, subject, body_text):
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    mail_username = os.environ.get("MAIL_USERNAME", "")
+    mail_password = os.environ.get("MAIL_PASSWORD", "")
+
+    if not mail_username or not mail_password:
+        print("[EMAIL ERROR] MAIL_USERNAME or MAIL_PASSWORD not set in .env")
+        return
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"]    = f"eCampus Vote <{mail_username}>"
+        msg["To"]      = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body_text, "plain"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(mail_username, mail_password)
+            server.sendmail(mail_username, to_email, msg.as_string())
+
+        print(f"[EMAIL SUCCESS] Gmail sent to {to_email}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] Gmail failed: {str(e)}")
+
+
+def _send_via_resend(to_email, to_name, subject, body_text):
     api_key = os.environ.get("RESEND_API_KEY", "")
 
     if not api_key:
-        print("[EMAIL ERROR] RESEND_API_KEY environment variable not set.")
+        print("[EMAIL ERROR] RESEND_API_KEY not set.")
         return
 
     url = "https://api.resend.com/emails"
@@ -63,11 +103,11 @@ def _send_email(to_email, to_name, subject, body_text):
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code in (200, 201):
-            print(f"[EMAIL SUCCESS] Sent to {to_email}")
+            print(f"[EMAIL SUCCESS] Resend sent to {to_email}")
         else:
             print(f"[EMAIL ERROR] Resend returned {response.status_code}: {response.text}")
     except Exception as e:
-        print(f"[EMAIL ERROR] Request failed: {str(e)}")
+        print(f"[EMAIL ERROR] Resend request failed: {str(e)}")
 
 
 # ── Public email functions ────────────────────────────────────────────────────
