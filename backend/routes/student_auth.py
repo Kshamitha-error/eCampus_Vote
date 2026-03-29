@@ -14,7 +14,11 @@ student_auth_bp = Blueprint("student_auth", __name__, url_prefix="/api/student/a
 
 def _send_async(app, to, name, otp):
     with app.app_context():
-        send_otp_email(to, name, otp)
+        try:
+            send_otp_email(to, name, otp)
+            print(f"[EMAIL SUCCESS] OTP sent to {to}")
+        except Exception as e:
+            print(f"[EMAIL ERROR] Failed to send to {to}: {str(e)}")
 
 
 def sanitize(value):
