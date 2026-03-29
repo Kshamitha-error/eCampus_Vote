@@ -39,31 +39,25 @@ def check_password(plain, hashed):
     except: return False
 
 
-# ── Brevo HTTP API email sender (works on Render free tier) ──────────────────
+# ── Resend HTTP API email sender (works on Render free tier) ─────────────────
 
-def _send_via_brevo(to_email, to_name, subject, body_text):
-    """Send email using Brevo HTTP API — bypasses SMTP block on Render free tier."""
-    api_key = os.environ.get("BREVO_API_KEY", "")
-    sender_email = os.environ.get("MAIL_USERNAME", "")
+def _send_email(to_email, to_name, subject, body_text):
+    api_key = os.environ.get("RESEND_API_KEY", "")
 
     if not api_key:
-        print("[EMAIL ERROR] BREVO_API_KEY environment variable not set.")
-        return
-    if not sender_email:
-        print("[EMAIL ERROR] MAIL_USERNAME environment variable not set.")
+        print("[EMAIL ERROR] RESEND_API_KEY environment variable not set.")
         return
 
-    url = "https://api.brevo.com/v3/smtp/email"
+    url = "https://api.resend.com/emails"
     headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json"
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
     }
     payload = {
-        "sender": {"name": "eCampus Vote", "email": sender_email},
-        "to": [{"email": to_email, "name": to_name or "Student"}],
+        "from": "eCampus Vote <onboarding@resend.dev>",
+        "to": [to_email],
         "subject": subject,
-        "textContent": body_text
+        "text": body_text
     }
 
     try:
@@ -71,7 +65,7 @@ def _send_via_brevo(to_email, to_name, subject, body_text):
         if response.status_code in (200, 201):
             print(f"[EMAIL SUCCESS] Sent to {to_email}")
         else:
-            print(f"[EMAIL ERROR] Brevo returned {response.status_code}: {response.text}")
+            print(f"[EMAIL ERROR] Resend returned {response.status_code}: {response.text}")
     except Exception as e:
         print(f"[EMAIL ERROR] Request failed: {str(e)}")
 
@@ -89,7 +83,7 @@ Your One-Time Password for eCampus Vote is:
 Valid for 2 minutes. Do not share this with anyone.
 
 — eCampus Vote Team"""
-    _send_via_brevo(to_email, name, subject, body)
+    _send_email(to_email, name, subject, body)
 
 
 def send_result_email(app, to_email, student_name, election_title, winner_name, branch, year):
@@ -103,7 +97,7 @@ Branch: {branch}  |  Year: {year}
 
 Thank you for participating.
 — eCampus Vote Team"""
-    _send_via_brevo(to_email, student_name, subject, body)
+    _send_email(to_email, student_name, subject, body)
 
 
 def send_election_notification_email(app, to_email, student_name, title, message):
@@ -113,4 +107,4 @@ def send_election_notification_email(app, to_email, student_name, title, message
 {message}
 
 — eCampus Vote Team"""
-    _send_via_brevo(to_email, student_name, subject, body)
+    _send_email(to_email, student_name, subject, body)
