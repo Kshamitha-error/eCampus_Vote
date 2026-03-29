@@ -3,7 +3,7 @@ import axios from "axios";
 
 // Development:  set REACT_APP_API_URL in .env.local
 // Production:   set REACT_APP_API_URL in Vercel environment variables
-const BASE = process.env.REACT_APP_API_URL || "http://192.168.0.21:5000/api";
+const BASE = process.env.REACT_APP_API_URL || "https://ecampus-backend.onrender.com/api";
 
 const API = axios.create({
   baseURL: BASE,
