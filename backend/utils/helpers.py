@@ -1,4 +1,4 @@
-import bcrypt, random, string, re, threading
+import bcrypt, random, string, re, os, requests
 from datetime import datetime, timedelta
 
 _otp_store = {}
@@ -8,7 +8,7 @@ def generate_otp():
 
 def set_otp(student):
     otp = generate_otp()
-    _otp_store[student.id] = {"otp":otp, "expires":datetime.now()+timedelta(minutes=2)}
+    _otp_store[student.id] = {"otp": otp, "expires": datetime.now() + timedelta(minutes=2)}
     return otp
 
 store_otp = set_otp
@@ -24,11 +24,11 @@ def verify_otp(student, otp):
     return True, "OTP verified."
 
 def validate_password_strength(password):
-    if len(password)<8 or len(password)>12: return False, "Password must be 8-12 characters."
-    if not re.search(r"[A-Z]", password):   return False, "Must contain uppercase letter."
-    if not re.search(r"[a-z]", password):   return False, "Must contain lowercase letter."
-    if not re.search(r"\d",    password):   return False, "Must contain a number."
-    if not re.search(r"[@$!%*?&_#]", password): return False, "Must contain special character (@$!%*?&_#)."
+    if len(password) < 8 or len(password) > 12: return False, "Password must be 8-12 characters."
+    if not re.search(r"[A-Z]", password):        return False, "Must contain uppercase letter."
+    if not re.search(r"[a-z]", password):        return False, "Must contain lowercase letter."
+    if not re.search(r"\d",    password):        return False, "Must contain a number."
+    if not re.search(r"[@$!%*?&_#]", password):  return False, "Must contain special character (@$!%*?&_#)."
     return True, "Strong."
 
 def hash_password(password):
@@ -38,24 +38,49 @@ def check_password(plain, hashed):
     try:    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except: return False
 
-def _send_async(app, msg):
-    with app.app_context():
-        try:
-            from extensions import mail
-            mail.send(msg)
-        except Exception as e:
-            print(f"[EMAIL ERROR] {e}")
+
+# ── Brevo HTTP API email sender (works on Render free tier) ──────────────────
+
+def _send_via_brevo(to_email, to_name, subject, body_text):
+    """Send email using Brevo HTTP API — bypasses SMTP block on Render free tier."""
+    api_key = os.environ.get("BREVO_API_KEY", "")
+    sender_email = os.environ.get("MAIL_USERNAME", "")
+
+    if not api_key:
+        print("[EMAIL ERROR] BREVO_API_KEY environment variable not set.")
+        return
+    if not sender_email:
+        print("[EMAIL ERROR] MAIL_USERNAME environment variable not set.")
+        return
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {"name": "eCampus Vote", "email": sender_email},
+        "to": [{"email": to_email, "name": to_name or "Student"}],
+        "subject": subject,
+        "textContent": body_text
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code in (200, 201):
+            print(f"[EMAIL SUCCESS] Sent to {to_email}")
+        else:
+            print(f"[EMAIL ERROR] Brevo returned {response.status_code}: {response.text}")
+    except Exception as e:
+        print(f"[EMAIL ERROR] Request failed: {str(e)}")
+
+
+# ── Public email functions ────────────────────────────────────────────────────
 
 def send_otp_email(to_email, name, otp):
-    from flask import current_app
-    from flask_mail import Message
-    app = current_app._get_current_object()
-    msg = Message(
-        subject="eCampus Vote — Your OTP",
-        sender=app.config["MAIL_USERNAME"],
-        recipients=[to_email]
-    )
-    msg.body = f"""Hello {name or 'Student'},
+    subject = "eCampus Vote — Your OTP"
+    body = f"""Hello {name or 'Student'},
 
 Your One-Time Password for eCampus Vote is:
 
@@ -64,16 +89,12 @@ Your One-Time Password for eCampus Vote is:
 Valid for 2 minutes. Do not share this with anyone.
 
 — eCampus Vote Team"""
-    threading.Thread(target=_send_async, args=(app,msg), daemon=True).start()
+    _send_via_brevo(to_email, name, subject, body)
+
 
 def send_result_email(app, to_email, student_name, election_title, winner_name, branch, year):
-    from flask_mail import Message
-    msg = Message(
-        subject=f"Results: {election_title}",
-        sender=app.config["MAIL_USERNAME"],
-        recipients=[to_email]
-    )
-    msg.body = f"""Hello {student_name},
+    subject = f"Results: {election_title}"
+    body = f"""Hello {student_name},
 
 Results for '{election_title}' are out!
 
@@ -82,18 +103,14 @@ Branch: {branch}  |  Year: {year}
 
 Thank you for participating.
 — eCampus Vote Team"""
-    threading.Thread(target=_send_async, args=(app,msg), daemon=True).start()
+    _send_via_brevo(to_email, student_name, subject, body)
+
 
 def send_election_notification_email(app, to_email, student_name, title, message):
-    from flask_mail import Message
-    msg = Message(
-        subject=f"eCampus Vote — {title}",
-        sender=app.config["MAIL_USERNAME"],
-        recipients=[to_email]
-    )
-    msg.body = f"""Hello {student_name},
+    subject = f"eCampus Vote — {title}"
+    body = f"""Hello {student_name},
 
 {message}
 
 — eCampus Vote Team"""
-    threading.Thread(target=_send_async, args=(app,msg), daemon=True).start()
+    _send_via_brevo(to_email, student_name, subject, body)
