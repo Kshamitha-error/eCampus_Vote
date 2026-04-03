@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import API from "../utils/api";
+import API, { getImageUrl } from "../utils/api";
 import Layout from "../components/Layout";
 import toast from "react-hot-toast";
-import NgrokImg, { imgUrl } from "../components/NgrokImg";
 
 const S = {
   card: { background:"#fff", border:"1.5px solid #dbeafe", borderRadius:16, boxShadow:"0 2px 12px rgba(59,130,246,0.07)" },
@@ -62,8 +61,13 @@ export default function CastVote() {
             <div style={{ fontSize:64, marginBottom:16, animation:"bounce 1.5s ease-in-out infinite" }}>✅</div>
             <h2 style={{ fontSize:22, fontWeight:800, color:"#15803d", marginBottom:10, fontFamily:"'Space Grotesk',sans-serif" }}>Already Voted!</h2>
             <p style={{ fontSize:14, color:"#64748b", marginBottom:8 }}>You have already cast your vote in this election.</p>
-            {votedFor && <p style={{ fontSize:15, fontWeight:700, color:"#1e3a8a", marginBottom:28, background:"#eff6ff", padding:"10px 20px", borderRadius:10 }}>You voted for: {votedFor}</p>}
-            <button onClick={() => navigate("/dashboard")} style={{ background:"linear-gradient(135deg,#1d4ed8,#2563eb)", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            {votedFor && (
+              <p style={{ fontSize:15, fontWeight:700, color:"#1e3a8a", marginBottom:28, background:"#eff6ff", padding:"10px 20px", borderRadius:10 }}>
+                You voted for: {votedFor}
+              </p>
+            )}
+            <button onClick={() => navigate("/dashboard")}
+              style={{ background:"linear-gradient(135deg,#1d4ed8,#2563eb)", color:"#fff", border:"none", borderRadius:12, padding:"12px 32px", fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               Back to Dashboard
             </button>
           </div>
@@ -81,7 +85,8 @@ export default function CastVote() {
             <div style={{ fontSize:52, marginBottom:16 }}>⏳</div>
             <h2 style={{ fontSize:20, fontWeight:700, color:"#1e3a8a", fontFamily:"'Space Grotesk',sans-serif" }}>Voting not available</h2>
             <p style={{ color:"#64748b", margin:"10px 0 24px" }}>This election is not currently accepting votes.</p>
-            <button onClick={() => navigate("/elections")} style={{ background:"linear-gradient(135deg,#1d4ed8,#2563eb)", color:"#fff", border:"none", borderRadius:12, padding:"12px 24px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+            <button onClick={() => navigate("/elections")}
+              style={{ background:"linear-gradient(135deg,#1d4ed8,#2563eb)", color:"#fff", border:"none", borderRadius:12, padding:"12px 24px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
               View Elections
             </button>
           </div>
@@ -120,10 +125,12 @@ export default function CastVote() {
             </div>
             <p style={{ fontSize:12, color:"#ef4444", textAlign:"center", marginBottom:20 }}>⚠️ This cannot be changed once submitted.</p>
             <div style={{ display:"flex", gap:12 }}>
-              <button onClick={() => setShowConfirm(false)} style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid #dbeafe", background:"#f0f7ff", color:"#64748b", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={() => setShowConfirm(false)}
+                style={{ flex:1, padding:"12px", borderRadius:10, border:"1.5px solid #dbeafe", background:"#f0f7ff", color:"#64748b", fontWeight:600, fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
                 Cancel
               </button>
-              <button onClick={handleVote} disabled={submitting} style={{ flex:1, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 12px rgba(22,163,74,0.3)" }}>
+              <button onClick={handleVote} disabled={submitting}
+                style={{ flex:1, padding:"12px", borderRadius:10, border:"none", background:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"inherit", boxShadow:"0 4px 12px rgba(22,163,74,0.3)" }}>
                 {submitting ? "Submitting..." : "✅ Confirm Vote"}
               </button>
             </div>
@@ -132,35 +139,41 @@ export default function CastVote() {
       )}
 
       <div style={{ padding:"28px 24px 48px", maxWidth:700, margin:"0 auto" }}>
-        <button onClick={() => navigate(-1)} style={{ background:"none", border:"none", color:"#2563eb", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:20 }}>← Back</button>
+        <button onClick={() => navigate(-1)}
+          style={{ background:"none", border:"none", color:"#2563eb", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:20 }}>
+          ← Back
+        </button>
 
         <div style={{ ...S.card, padding:"22px 24px", marginBottom:24 }}>
-          <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#dcfce7", color:"#15803d", borderRadius:99, padding:"4px 12px", fontSize:11, fontWeight:700, marginBottom:12 }}>🟢 Voting is Open</div>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#dcfce7", color:"#15803d", borderRadius:99, padding:"4px 12px", fontSize:11, fontWeight:700, marginBottom:12 }}>
+            🟢 Voting is Open
+          </div>
           <h1 style={{ fontSize:20, fontWeight:800, color:"#1e3a8a", margin:0, fontFamily:"'Space Grotesk',sans-serif" }}>{election.title}</h1>
           <p style={{ fontSize:13, color:"#64748b", marginTop:6 }}>Select one candidate below. You can only vote once — choose carefully!</p>
         </div>
 
         <h2 style={{ fontSize:16, fontWeight:700, color:"#1e3a8a", marginBottom:14, fontFamily:"'Space Grotesk',sans-serif" }}>Choose a Candidate</h2>
+
         <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:28 }}>
           {election.candidates?.map((c) => (
             <div key={c.id} onClick={() => setSelected(c.id)}
               style={{ background:"#fff", border:`2px solid ${selected===c.id ? "#2563eb" : "#dbeafe"}`, borderRadius:14, padding:"16px 18px", cursor:"pointer", transition:"all 0.2s", boxShadow:selected===c.id ? "0 4px 16px rgba(37,99,235,0.15)" : "none" }}
             >
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                {/* Radio */}
+
+                {/* Radio button */}
                 <div style={{ width:22, height:22, borderRadius:"50%", border:`2.5px solid ${selected===c.id ? "#2563eb" : "#cbd5e1"}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:selected===c.id ? "#2563eb" : "#fff", transition:"all 0.2s" }}>
                   {selected===c.id && <div style={{ width:8, height:8, borderRadius:"50%", background:"#fff" }} />}
                 </div>
 
-                {/* ✅ Photo — imgUrl() fixes http->https and relative paths */}
+                {/* Photo */}
                 {c.photo_url ? (
-                  <NgrokImg
-                    src={imgUrl(c.photo_url)}
-                    alt={c.name}
-                    style={{ width:50, height:50, borderRadius:10, objectFit:"cover", border:"2px solid #dbeafe" }}
-                  />
+                  <img src={getImageUrl(c.photo_url)} alt={c.name}
+                    style={{ width:50, height:50, borderRadius:10, objectFit:"cover", border:"2px solid #dbeafe" }} />
                 ) : (
-                  <div style={{ width:50, height:50, borderRadius:10, background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:18 }}>{c.name[0]}</div>
+                  <div style={{ width:50, height:50, borderRadius:10, background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:18 }}>
+                    {c.name[0]}
+                  </div>
                 )}
 
                 <div style={{ flex:1 }}>
@@ -173,13 +186,10 @@ export default function CastVote() {
                   )}
                 </div>
 
-                {/* ✅ Logo — imgUrl() fixes http->https and relative paths */}
+                {/* Symbol / Logo */}
                 {(c.logo_url || c.symbol_url) && (
-                  <NgrokImg
-                    src={imgUrl(c.logo_url || c.symbol_url)}
-                    alt="symbol"
-                    style={{ height:36, width:36, objectFit:"contain" }}
-                  />
+                  <img src={getImageUrl(c.logo_url || c.symbol_url)} alt="symbol"
+                    style={{ height:36, width:36, objectFit:"contain" }} />
                 )}
               </div>
             </div>

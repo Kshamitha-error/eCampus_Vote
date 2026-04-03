@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import API from "../utils/api";
+import API, { getImageUrl } from "../utils/api";
 import Layout from "../components/Layout";
 import toast from "react-hot-toast";
 
@@ -70,7 +70,7 @@ export default function CandidateDetail() {
         <div style={{ ...S.card, padding:"28px 28px", marginBottom:16, animation:"fadeUp 0.4s cubic-bezier(.16,1,.3,1)" }}>
           <div style={{ display:"flex", alignItems:"flex-start", gap:20, flexWrap:"wrap", marginBottom:20 }}>
             {candidate.photo_url ? (
-              <img src={candidate.photo_url} alt={candidate.name}
+              <img src={getImageUrl(candidate.photo_url)} alt={candidate.name}
                 style={{ width:90, height:90, borderRadius:16, objectFit:"cover", border:"3px solid #dbeafe", boxShadow:"0 4px 12px rgba(37,99,235,0.15)", flexShrink:0 }} />
             ) : (
               <div style={{ width:90, height:90, borderRadius:16, background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:800, fontSize:36, boxShadow:"0 4px 12px rgba(37,99,235,0.3)", flexShrink:0 }}>
@@ -80,7 +80,7 @@ export default function CandidateDetail() {
             <div style={{ flex:1 }}>
               <h1 style={{ fontSize:24, fontWeight:800, color:"#1e3a8a", margin:"0 0 6px", fontFamily:"'Space Grotesk',sans-serif" }}>{candidate.name}</h1>
               {candidate.logo_url && (
-                <img src={candidate.logo_url} alt="Symbol" style={{ height:36, marginBottom:10, objectFit:"contain" }} />
+                <img src={getImageUrl(candidate.logo_url)} alt="Symbol" style={{ height:36, marginBottom:10, objectFit:"contain" }} />
               )}
               <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
                 {candidate.branch && (

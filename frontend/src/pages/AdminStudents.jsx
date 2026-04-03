@@ -167,7 +167,7 @@ function AllStudents({ onRefreshStats }) {
                   <td style={{ padding: "10px 12px", color: "#475569" }}>{s.roll_no}</td>
                   <td style={{ padding: "10px 12px", color: "#475569" }}>{s.branch || "—"}</td>
                   <td style={{ padding: "10px 12px", color: "#475569" }}>{s.year ? `${s.year}${["st","nd","rd","th"][s.year-1]} yr` : "—"}</td>
-                  <td style={{ padding: "10px 12px" }}><Badge registered={s.is_registered} /></td>
+                  <td style={{ padding: "10px 12px" }}><Badge registered={s.registered} /></td>
                   <td style={{ padding: "10px 12px" }}>
                     <button style={{ ...S.btn("danger"), padding: "5px 12px", fontSize: 12 }}
                       onClick={() => handleDelete([s.id])}>Remove</button>
@@ -292,7 +292,6 @@ function AddSingle({ onRefreshStats }) {
     if (!form.email || !form.roll_no) return toast.error("Email and roll number are required.");
     setLoading(true);
     try {
-      // Reuse CSV upload with single-row payload
       const csv  = `email,roll_no,branch,year\n${form.email},${form.roll_no},${form.branch},${form.year}`;
       const blob = new Blob([csv], { type: "text/csv" });
       const file = new File([blob], "single.csv");

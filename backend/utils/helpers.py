@@ -1,5 +1,8 @@
-import bcrypt, random, string, re, os, requests
+# -*- coding: utf-8 -*-
+import bcrypt, random, string, re, os, smtplib
 from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 _otp_store = {}
 
@@ -15,11 +18,13 @@ store_otp = set_otp
 
 def verify_otp(student, otp):
     record = _otp_store.get(student.id)
-    if not record:             return False, "OTP not found. Please request a new one."
+    if not record:
+        return False, "OTP not found. Please request a new one."
     if datetime.now() > record["expires"]:
         _otp_store.pop(student.id, None)
         return False, "OTP has expired. Please request a new one."
-    if record["otp"] != otp:  return False, "Invalid OTP."
+    if record["otp"] != otp:
+        return False, "Invalid OTP."
     _otp_store.pop(student.id, None)
     return True, "OTP verified."
 
@@ -39,81 +44,33 @@ def check_password(plain, hashed):
     except: return False
 
 
-# ── Smart email sender — Gmail locally, Resend on Render ─────────────────────
+# ── Gmail SMTP ────────────────────────────────────────────────────────────────
 
 def _send_email(to_email, to_name, subject, body_text):
-    flask_env = os.environ.get("FLASK_ENV", "production")
-
-    if flask_env == "development":
-        # ── LOCAL: use Gmail SMTP ─────────────────────────────────────────
-        _send_via_gmail(to_email, to_name, subject, body_text)
-    else:
-        # ── PRODUCTION: use Resend HTTP API ───────────────────────────────
-        _send_via_resend(to_email, to_name, subject, body_text)
-
-
-def _send_via_gmail(to_email, to_name, subject, body_text):
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
-
     mail_username = os.environ.get("MAIL_USERNAME", "")
     mail_password = os.environ.get("MAIL_PASSWORD", "")
-
     if not mail_username or not mail_password:
         print("[EMAIL ERROR] MAIL_USERNAME or MAIL_PASSWORD not set in .env")
         return
-
     try:
         msg = MIMEMultipart()
         msg["From"]    = f"eCampus Vote <{mail_username}>"
         msg["To"]      = to_email
         msg["Subject"] = subject
-        msg.attach(MIMEText(body_text, "plain"))
-
+        msg.attach(MIMEText(body_text, "plain", "utf-8"))
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
             server.login(mail_username, mail_password)
             server.sendmail(mail_username, to_email, msg.as_string())
-
-        print(f"[EMAIL SUCCESS] Gmail sent to {to_email}")
+        print(f"[EMAIL SUCCESS] Sent to {to_email}")
     except Exception as e:
-        print(f"[EMAIL ERROR] Gmail failed: {str(e)}")
+        print(f"[EMAIL ERROR] {str(e)}")
 
 
-def _send_via_resend(to_email, to_name, subject, body_text):
-    api_key = os.environ.get("RESEND_API_KEY", "")
-
-    if not api_key:
-        print("[EMAIL ERROR] RESEND_API_KEY not set.")
-        return
-
-    url = "https://api.resend.com/emails"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "from": "eCampus Vote <onboarding@resend.dev>",
-        "to": [to_email],
-        "subject": subject,
-        "text": body_text
-    }
-
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        if response.status_code in (200, 201):
-            print(f"[EMAIL SUCCESS] Resend sent to {to_email}")
-        else:
-            print(f"[EMAIL ERROR] Resend returned {response.status_code}: {response.text}")
-    except Exception as e:
-        print(f"[EMAIL ERROR] Resend request failed: {str(e)}")
-
-
-# ── Public email functions ────────────────────────────────────────────────────
+# ── Public functions (no 'app' param) ─────────────────────────────────────────
 
 def send_otp_email(to_email, name, otp):
-    subject = "eCampus Vote — Your OTP"
+    subject = "eCampus Vote - Your OTP"
     body = f"""Hello {name or 'Student'},
 
 Your One-Time Password for eCampus Vote is:
@@ -122,11 +79,11 @@ Your One-Time Password for eCampus Vote is:
 
 Valid for 2 minutes. Do not share this with anyone.
 
-— eCampus Vote Team"""
+- eCampus Vote Team"""
     _send_email(to_email, name, subject, body)
 
 
-def send_result_email(app, to_email, student_name, election_title, winner_name, branch, year):
+def send_result_email(to_email, student_name, election_title, winner_name, branch, year):
     subject = f"Results: {election_title}"
     body = f"""Hello {student_name},
 
@@ -136,15 +93,15 @@ Winner: {winner_name}
 Branch: {branch}  |  Year: {year}
 
 Thank you for participating.
-— eCampus Vote Team"""
+- eCampus Vote Team"""
     _send_email(to_email, student_name, subject, body)
 
 
-def send_election_notification_email(app, to_email, student_name, title, message):
-    subject = f"eCampus Vote — {title}"
+def send_election_notification_email(to_email, student_name, title, message):
+    subject = f"eCampus Vote - {title}"
     body = f"""Hello {student_name},
 
 {message}
 
-— eCampus Vote Team"""
+- eCampus Vote Team"""
     _send_email(to_email, student_name, subject, body)

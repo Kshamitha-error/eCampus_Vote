@@ -30,7 +30,6 @@ function LogoBranding({ white }) {
   );
 }
 
-// Remove invisible chars Android might inject
 function sanitize(str) {
   return str
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
@@ -67,6 +66,13 @@ export default function StudentLogin() {
         email:   cleanEmail,
         roll_no: cleanRollNo,
       });
+
+      if (res.data.error === "already_registered") {
+        toast.error("You're already registered! Please sign in with your password.");
+        navigate("/returning-login");
+        return;
+      }
+
       toast.success("OTP sent to your email!");
       navigate("/verify-otp", { state: { student_id: res.data.student_id } });
     } catch (err) {
@@ -109,7 +115,6 @@ export default function StudentLogin() {
       <h2 style={{ fontSize:22, fontWeight:800, color:"#1e3a8a", marginBottom:6, fontFamily:"'Space Grotesk',sans-serif" }}>Student Login</h2>
       <p style={{ fontSize:13, color:"#64748b", marginBottom:28 }}>Enter your college email and roll number to get started.</p>
 
-      {/* Email */}
       <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:6 }}>College Email</label>
       <input
         type="text"
@@ -126,7 +131,6 @@ export default function StudentLogin() {
         style={{ ...inp, marginBottom:16 }}
       />
 
-      {/* Roll Number */}
       <label style={{ fontSize:13, fontWeight:600, color:"#374151", display:"block", marginBottom:6 }}>Roll Number</label>
       <input
         type="text"

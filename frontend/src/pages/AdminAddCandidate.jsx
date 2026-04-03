@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import API from "../utils/api";
+import API, { getImageUrl } from "../utils/api";
 import Layout from "../components/Layout";
 import toast from "react-hot-toast";
 
@@ -26,14 +26,14 @@ const inp = {
 
 export default function AdminAddCandidate() {
   const { id: election_id } = useParams();
-  const navigate        = useNavigate();
+  const navigate = useNavigate();
 
-  const [election,    setElection]    = useState(null);
-  const [candidates,  setCandidates]  = useState([]);
-  const [form,        setForm]        = useState(empty());
-  const [editingId,   setEditingId]   = useState(null);
-  const [loading,     setLoading]     = useState(false);
-  const [uploading,   setUploading]   = useState({ photo: false, symbol: false });
+  const [election,   setElection]   = useState(null);
+  const [candidates, setCandidates] = useState([]);
+  const [form,       setForm]       = useState(empty());
+  const [editingId,  setEditingId]  = useState(null);
+  const [loading,    setLoading]    = useState(false);
+  const [uploading,  setUploading]  = useState({ photo: false, symbol: false });
 
   const fetchElection = useCallback(async () => {
     try {
@@ -57,7 +57,6 @@ export default function AdminAddCandidate() {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  // ── Image upload ──────────────────────────────────────────
   const uploadImage = async (file, field) => {
     if (!file) return;
     setUploading(u => ({ ...u, [field]: true }));
@@ -73,7 +72,6 @@ export default function AdminAddCandidate() {
     finally { setUploading(u => ({ ...u, [field]: false })); }
   };
 
-  // ── Save candidate ────────────────────────────────────────
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Candidate name is required.");
     if (!form.photo_url)   return toast.error("Please upload a candidate photo.");
@@ -120,7 +118,6 @@ export default function AdminAddCandidate() {
 
   const handleDone = () => navigate("/admin/elections");
 
-  // ── Styles ────────────────────────────────────────────────
   const S = {
     card: {
       background: "#fff", border: "1.5px solid #dbeafe",
@@ -128,11 +125,11 @@ export default function AdminAddCandidate() {
     },
     btn: (variant = "primary", disabled = false) => {
       const map = {
-        primary: { bg: "linear-gradient(135deg,#1d4ed8,#2563eb)", color: "#fff", border: "none" },
-        outline: { bg: "transparent", color: "#2563eb", border: "1.5px solid #bfdbfe" },
-        danger:  { bg: "transparent", color: "#dc2626", border: "1.5px solid #fecaca" },
-        ghost:   { bg: "#f1f5f9",     color: "#475569", border: "none" },
-        success: { bg: "linear-gradient(135deg,#15803d,#16a34a)", color: "#fff", border: "none" },
+        primary: { bg: "linear-gradient(135deg,#1d4ed8,#2563eb)", color: "#fff",     border: "none" },
+        outline: { bg: "transparent",                              color: "#2563eb",  border: "1.5px solid #bfdbfe" },
+        danger:  { bg: "transparent",                              color: "#dc2626",  border: "1.5px solid #fecaca" },
+        ghost:   { bg: "#f1f5f9",                                  color: "#475569",  border: "none" },
+        success: { bg: "linear-gradient(135deg,#15803d,#16a34a)", color: "#fff",     border: "none" },
       };
       const v = map[variant] || map.primary;
       return {
@@ -145,7 +142,6 @@ export default function AdminAddCandidate() {
     },
   };
 
-  // ── Image upload box ──────────────────────────────────────
   const ImageUpload = ({ label, field, url, required }) => (
     <div style={{ flex: 1 }}>
       <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
@@ -160,7 +156,8 @@ export default function AdminAddCandidate() {
         }}>
           {url ? (
             <>
-              <img src={url} alt={label} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: field === "photo" ? "50%" : 8, marginBottom: 6 }} />
+              <img src={getImageUrl(url)} alt={label}
+                style={{ width: 64, height: 64, objectFit: "cover", borderRadius: field === "photo" ? "50%" : 8, marginBottom: 6 }} />
               <div style={{ fontSize: 11, color: "#2563eb" }}>Click to change</div>
             </>
           ) : uploading[field] ? (
@@ -188,7 +185,6 @@ export default function AdminAddCandidate() {
 
       <div style={{ padding: "28px 24px 60px", maxWidth: 720, margin: "0 auto" }}>
 
-        {/* Header */}
         <button onClick={() => navigate("/admin/elections")}
           style={{ background: "none", border: "none", color: "#2563eb", fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 20 }}>
           ← Back to Elections
@@ -211,7 +207,6 @@ export default function AdminAddCandidate() {
             {editingId ? "Editing candidate" : "New candidate"}
           </h2>
 
-          {/* Name */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
               Full Name <span style={{ color: "#ef4444" }}>*</span>
@@ -220,7 +215,6 @@ export default function AdminAddCandidate() {
               value={form.name} onChange={e => set("name", e.target.value)} />
           </div>
 
-          {/* Branch + Year */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
@@ -244,41 +238,32 @@ export default function AdminAddCandidate() {
             </div>
           </div>
 
-          {/* Photo + Symbol uploads */}
           <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-            <ImageUpload label="Candidate Photo" field="photo" url={form.photo_url} required />
-            <ImageUpload label="Symbol / Logo"   field="symbol" url={form.symbol_url} required />
+            <ImageUpload label="Candidate Photo" field="photo"   url={form.photo_url}   required />
+            <ImageUpload label="Symbol / Logo"   field="symbol"  url={form.symbol_url}  required />
           </div>
 
-          {/* Manifesto */}
           <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Manifesto
-            </label>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Manifesto</label>
             <textarea className="inp" style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
               rows={4} placeholder="Candidate's plans and promises..."
               value={form.manifesto} onChange={e => set("manifesto", e.target.value)} />
           </div>
 
-          {/* Achievements */}
           <div style={{ marginBottom: 24 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Achievements
-            </label>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Achievements</label>
             <textarea className="inp" style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
               rows={3} placeholder="Notable achievements, positions held..."
               value={form.achievements} onChange={e => set("achievements", e.target.value)} />
           </div>
 
-          {/* Actions */}
           <div style={{ display: "flex", gap: 12 }}>
             <button onClick={handleSave} disabled={loading}
               style={{ ...S.btn("primary", loading), flex: 1, padding: "13px" }}>
               {loading ? "Saving..." : editingId ? "Update Candidate" : "Add Candidate"}
             </button>
             {editingId && (
-              <button onClick={() => { setForm(empty()); setEditingId(null); }}
-                style={S.btn("ghost")}>
+              <button onClick={() => { setForm(empty()); setEditingId(null); }} style={S.btn("ghost")}>
                 Cancel
               </button>
             )}
@@ -305,20 +290,17 @@ export default function AdminAddCandidate() {
                   padding: "14px 16px", borderRadius: 12,
                   border: "1px solid #e0eaff", background: "#f8faff",
                 }}>
-                  {/* Number */}
                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#1d4ed8", flexShrink: 0 }}>
                     {i + 1}
                   </div>
 
-                  {/* Photo */}
                   {c.photo_url ? (
-                    <img src={c.photo_url} alt={c.name}
+                    <img src={getImageUrl(c.photo_url)} alt={c.name}
                       style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", border: "2px solid #bfdbfe", flexShrink: 0 }} />
                   ) : (
                     <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🧑</div>
                   )}
 
-                  {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: "#1e3a8a", fontSize: 14 }}>{c.name}</div>
                     <div style={{ fontSize: 12, color: "#64748b" }}>
@@ -326,13 +308,11 @@ export default function AdminAddCandidate() {
                     </div>
                   </div>
 
-                  {/* Symbol */}
                   {(c.symbol_url || c.logo_url) && (
-                    <img src={c.symbol_url || c.logo_url} alt="symbol"
+                    <img src={getImageUrl(c.symbol_url || c.logo_url)} alt="symbol"
                       style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 6, border: "1px solid #dbeafe", flexShrink: 0 }} />
                   )}
 
-                  {/* Actions */}
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                     <button style={{ ...S.btn("outline"), padding: "6px 14px", fontSize: 12 }}
                       onClick={() => handleEdit(c)}>Edit</button>
@@ -345,7 +325,6 @@ export default function AdminAddCandidate() {
           )}
         </div>
 
-        {/* Done button */}
         <button onClick={handleDone}
           style={{ ...S.btn("success"), width: "100%", padding: "14px", fontSize: 15, textAlign: "center" }}>
           {candidates.length > 0 ? `Done — ${candidates.length} candidate(s) added ✓` : "Skip & Finish"}

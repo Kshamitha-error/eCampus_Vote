@@ -1,13 +1,35 @@
 import axios from "axios";
 
+// ✏️ ONLY CHANGE THIS LINE — paste your ngrok URL every day
+const BASE_URL = "http://192.168.0.21:5000";
 
-// Development:  set REACT_APP_API_URL in .env.local
-// Production:   set REACT_APP_API_URL in Vercel environment variables
-const BASE = process.env.REACT_APP_API_URL ||  "http://192.168.0.21:5000/api";
+// — nothing else to touch below this line —
+const BASE = BASE_URL + "/api";
+
+export function getImageUrl(path) {
+  if (!path) return "";
+  
+  // Handle full URLs — strip whatever host and replace with current BASE_URL
+  if (path.includes("://")) {
+    try {
+      const u = new URL(path);
+      return BASE_URL + u.pathname + "?ngrok-skip-browser-warning=true";
+    } catch {
+      return BASE_URL + "?ngrok-skip-browser-warning=true";
+    }
+  }
+  
+  // Handle relative paths like /uploads/abc.jpg
+  const cleanPath = path.startsWith("/") ? path : "/" + path;
+  return BASE_URL + cleanPath + "?ngrok-skip-browser-warning=true";
+}
 
 const API = axios.create({
   baseURL: BASE,
   timeout: 15000,
+  headers: {
+    "ngrok-skip-browser-warning": "true",
+  },
 });
 
 API.interceptors.request.use((config) => {

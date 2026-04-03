@@ -2,13 +2,11 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from models.models import Admin
 from utils.helpers import check_password
-from extensions import limiter
 
 admin_auth_bp = Blueprint("admin_auth", __name__, url_prefix="/api/admin/auth")
 
 
 @admin_auth_bp.route("/login", methods=["POST"])
-@limiter.limit("10 per minute")
 def admin_login():
     data     = request.get_json() or {}
     email    = (data.get("email")    or "").strip().lower()
