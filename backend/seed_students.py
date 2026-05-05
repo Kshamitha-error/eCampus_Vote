@@ -6,14 +6,14 @@ from models.models import Student
 from extensions import db
 
 STUDENTS = [   
-{"email":"kshamitha1612@gmail.com","roll_no":"23UP1A05O1"},
-{"email":"vrevathi240@gmail.com","roll_no":"23UP1A05O3"},
-{"email":"manushajalike@gmail.com","roll_no":"23UP1A05L2"},
-{"email":"nallaashritha96@gmail.com","roll_no":"23UP1A05M8"},
-{"email":"indlavarshitha73@gmail.com","roll_no":"23UP1A05L0"},
-{"email":"abhinayasangepu6@gmail.com","roll_no":"23UP1A05O0"},
-{"email":"bhargaviburi@gmail.com","roll_no":"23UP1A05J0"},
-{"email":"kshamithasogala@gmail.com","roll_no":"23UP1A05Z2"},
+{"email":"kshamitha@gmail.com","roll_no":"23UP1A05Z8"},
+{"email":"vrevathi@gmail.com","roll_no":"23UP1A05Z9"},
+{"email":"manushaje@gmail.com","roll_no":"23UP1A05Z6"},
+{"email":"nallaashrith@gmail.com","roll_no":"23UP1A05Z5"},
+{"email":"indlavarshith3@gmail.com","roll_no":"23UP1A05Z3"},
+{"email":"abhinayas6@gmail.com","roll_no":"23UP1A05Z0"},
+{"email":"bharuri@gmail.com","roll_no":"23UP1A05Z1"},
+{"email":"ithasogala@gmail.com","roll_no":"23UP1A05Z2"},
 ]
 app = create_app()
 with app.app_context():
