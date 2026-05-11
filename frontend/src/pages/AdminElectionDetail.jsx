@@ -43,14 +43,24 @@ export default function AdminElectionDetail() {
 
   const doAction = async (action) => {
     if (action === "cancel" && !window.confirm("Cancel this election?")) return;
-    if (action === "end" && !window.confirm("End this election now?")) return;
+    if (action === "end"    && !window.confirm("End this election now?")) return;
+
     try {
-      await API.post(`/elections/${id}/${action}`);
+      if (action === "start") {
+        await API.post(`/elections/${id}/start`);
+      } else if (action === "end") {
+        // FIX: POST to /end (backend accepts POST or PATCH)
+        await API.post(`/elections/${id}/end`);
+      } else if (action === "cancel") {
+        await API.post(`/elections/${id}/cancel`);
+      }
       toast.success(`Election ${action}ed!`);
       load();
     } catch (err) {
-      const msg = err.response?.data?.error || "Action failed.";
-      if (!msg.toLowerCase().includes("admin")) toast.error(msg);
+      // FIX: always show real error, never suppress
+      const msg = err.response?.data?.error || `Failed to ${action} election.`;
+      toast.error(msg);
+      console.error(`[AdminDetail:${action}]`, err.response?.data || err.message);
     }
   };
 

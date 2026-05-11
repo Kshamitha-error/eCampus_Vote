@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (role === "student" && token) {
-      API.get("/notifications/")
+      API.get("/notifications")
         .then(r => setUnreadCount(r.data.unread_count || 0))
         .catch(() => {});
     }

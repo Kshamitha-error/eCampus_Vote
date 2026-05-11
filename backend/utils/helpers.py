@@ -6,15 +6,22 @@ from email.mime.multipart import MIMEMultipart
 
 _otp_store = {}
 
+
 def generate_otp():
     return "".join(random.choices(string.digits, k=6))
 
+
 def set_otp(student):
     otp = generate_otp()
-    _otp_store[student.id] = {"otp": otp, "expires": datetime.now() + timedelta(minutes=2)}
+    _otp_store[student.id] = {
+        "otp":     otp,
+        "expires": datetime.now() + timedelta(minutes=2)
+    }
     return otp
 
+
 store_otp = set_otp
+
 
 def verify_otp(student, otp):
     record = _otp_store.get(student.id)
@@ -28,16 +35,23 @@ def verify_otp(student, otp):
     _otp_store.pop(student.id, None)
     return True, "OTP verified."
 
+
 def validate_password_strength(password):
-    if len(password) < 8 or len(password) > 12: return False, "Password must be 8-12 characters."
-    if not re.search(r"[A-Z]", password):        return False, "Must contain uppercase letter."
-    if not re.search(r"[a-z]", password):        return False, "Must contain lowercase letter."
-    if not re.search(r"\d",    password):        return False, "Must contain a number."
-    if not re.search(r"[@$!%*?&_#]", password):  return False, "Must contain special character (@$!%*?&_#)."
+    if len(password) < 8 or len(password) > 12:
+        return False, "Password must be 8-12 characters."
+    if not re.search(r"[A-Z]", password): return False, "Must contain uppercase letter."
+    if not re.search(r"[a-z]", password): return False, "Must contain lowercase letter."
+    if not re.search(r"\d",    password): return False, "Must contain a number."
+    if not re.search(r"[@$!%*?&_#]", password):
+        return False, "Must contain special character (@$!%*?&_#)."
     return True, "Strong."
 
+
 def hash_password(password):
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt()
+    ).decode("utf-8")
+
 
 def check_password(plain, hashed):
     try:    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
@@ -47,27 +61,49 @@ def check_password(plain, hashed):
 # ── Gmail SMTP ────────────────────────────────────────────────────────────────
 
 def _send_email(to_email, to_name, subject, body_text):
-    mail_username = os.environ.get("MAIL_USERNAME", "")
-    mail_password = os.environ.get("MAIL_PASSWORD", "")
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+
+    # Strip ALL surrounding whitespace and quotes that .env might add
+    mail_username = os.environ.get("MAIL_USERNAME", "").strip().strip('"').strip("'")
+    mail_password = os.environ.get("MAIL_PASSWORD", "").strip().strip('"').strip("'")
+
     if not mail_username or not mail_password:
         print("[EMAIL ERROR] MAIL_USERNAME or MAIL_PASSWORD not set in .env")
         return
+
+    if not to_email or "@" not in str(to_email):
+        print(f"[EMAIL ERROR] Invalid recipient: '{to_email}'")
+        return
+
+    print(f"[EMAIL] Sending '{subject}' to {to_email} ...")
     try:
         msg = MIMEMultipart()
         msg["From"]    = f"eCampus Vote <{mail_username}>"
         msg["To"]      = to_email
         msg["Subject"] = subject
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=20) as server:
+            server.ehlo()
             server.starttls()
+            server.ehlo()
             server.login(mail_username, mail_password)
             server.sendmail(mail_username, to_email, msg.as_string())
-        print(f"[EMAIL SUCCESS] Sent to {to_email}")
+
+        print(f"[EMAIL OK] → {to_email}")
+
+    except smtplib.SMTPAuthenticationError:
+        print("[EMAIL ERROR] Gmail auth failed — verify App Password has no quotes in .env")
+    except smtplib.SMTPRecipientsRefused:
+        print(f"[EMAIL ERROR] Recipient refused: {to_email}")
+    except smtplib.SMTPException as e:
+        print(f"[EMAIL SMTP ERROR] {e}")
     except Exception as e:
-        print(f"[EMAIL ERROR] {str(e)}")
+        print(f"[EMAIL ERROR] {e}")
 
 
-# ── Public functions (no 'app' param) ─────────────────────────────────────────
+# ── Public helpers ────────────────────────────────────────────────────────────
 
 def send_otp_email(to_email, name, otp):
     subject = "eCampus Vote - Your OTP"
@@ -83,14 +119,16 @@ Valid for 2 minutes. Do not share this with anyone.
     _send_email(to_email, name, subject, body)
 
 
-def send_result_email(to_email, student_name, election_title, winner_name, branch, year):
+def send_result_email(to_email, student_name, election_title,
+                      winner_name, branch, year):
     subject = f"Results: {election_title}"
-    body = f"""Hello {student_name},
+    body = f"""Hello {student_name or 'Student'},
 
 Results for '{election_title}' are out!
 
-Winner: {winner_name}
-Branch: {branch}  |  Year: {year}
+Winner : {winner_name}
+Branch : {branch}
+Year   : {year}
 
 Thank you for participating.
 - eCampus Vote Team"""
@@ -99,7 +137,7 @@ Thank you for participating.
 
 def send_election_notification_email(to_email, student_name, title, message):
     subject = f"eCampus Vote - {title}"
-    body = f"""Hello {student_name},
+    body = f"""Hello {student_name or 'Student'},
 
 {message}
 

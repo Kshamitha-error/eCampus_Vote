@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import API from "../utils/api";
 import Layout from "../components/Layout";
 import toast from "react-hot-toast";
@@ -36,15 +36,34 @@ export default function AdminDashboard() {
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const load = () => {
+    setLoading(true);
     API.get("/elections/")
       .then((r) => setElections(r.data))
       .catch(() => toast.error("Failed to load."))
       .finally(() => setLoading(false));
   };
 
+  // Reload on mount
   useEffect(() => { load(); }, []);
+
+  // Reload when navigated back here (e.g. after creating an election)
+  useEffect(() => {
+    if (location.state?.refresh) {
+      load();
+      // Clear the state so it doesn't reload again on unrelated re-renders
+      window.history.replaceState({}, "");
+    }
+  }, [location.state?.refresh]);
+
+  // Reload when window gets focus (user switches back to tab)
+  useEffect(() => {
+    const handleFocus = () => load();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   const doAction = async (eid, action) => {
     if (action === "cancel" && !window.confirm("Cancel this election?")) return;

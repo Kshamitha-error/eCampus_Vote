@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // ✏️ ONLY CHANGE THIS LINE — paste your ngrok URL every day
-const BASE_URL = "http://192.168.0.21:5000";
+const BASE_URL = "http://10.64.101.206:5000";
 
 // — nothing else to touch below this line —
 const BASE = BASE_URL + "/api";

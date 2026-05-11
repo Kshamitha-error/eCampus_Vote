@@ -22,9 +22,10 @@ export default function AdminElections() {
   const navigate = useNavigate();
 
   const load = () => {
+    setLoading(true);
     API.get("/elections/")
       .then((r) => setElections(r.data))
-      .catch(() => toast.error("Failed to load."))
+      .catch(() => toast.error("Failed to load elections."))
       .finally(() => setLoading(false));
   };
 
@@ -37,14 +38,29 @@ export default function AdminElections() {
       end:    `End "${title}" now?`,
     }[action];
     if (confirmMsg && !window.confirm(confirmMsg)) return;
+
     try {
-      if (action==="delete") await API.delete(`/elections/${eid}/delete`);
-      else await API.post(`/elections/${eid}/${action}`);
-      toast.success(action==="delete" ? "Election deleted." : `Election ${action}ed!`);
+      if (action === "delete") {
+        // FIX: correct DELETE endpoint — no "/delete" suffix
+        await API.delete(`/elections/${eid}`);
+        toast.success("Election deleted.");
+      } else if (action === "start") {
+        await API.post(`/elections/${eid}/start`);
+        toast.success("Election started!");
+      } else if (action === "end") {
+        // FIX: backend accepts POST or PATCH on /end
+        await API.post(`/elections/${eid}/end`);
+        toast.success("Election ended!");
+      } else if (action === "cancel") {
+        await API.post(`/elections/${eid}/cancel`);
+        toast.success("Election cancelled!");
+      }
       load();
     } catch (err) {
-      const msg = err.response?.data?.error || "Action failed.";
-      if (!msg.toLowerCase().includes("admin")) toast.error(msg);
+      // FIX: always show the real error, never suppress
+      const msg = err.response?.data?.error || `Failed to ${action} election.`;
+      toast.error(msg);
+      console.error(`[doAction:${action}]`, err.response?.data || err.message);
     }
   };
 
@@ -56,7 +72,7 @@ export default function AdminElections() {
     { key:"cancelled", label:"✕ Cancelled" },
   ];
 
-  const filtered = filter==="all" ? elections : elections.filter(e => e.status===filter);
+  const filtered = filter === "all" ? elections : elections.filter(e => e.status === filter);
 
   return (
     <Layout>

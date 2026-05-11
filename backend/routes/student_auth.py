@@ -29,6 +29,8 @@ def normalize_roll(roll_no):
     return roll_no.upper().replace(" ", "").replace("-", "")
 
 
+# ─── Verify Identity (new/unregistered students only) ────────────────────────
+
 @student_auth_bp.route("/verify-identity", methods=["POST"])
 def verify_identity():
     data    = request.get_json() or {}
@@ -63,13 +65,54 @@ def verify_identity():
 
     # Already registered — redirect to password login
     if student.is_registered:
-        return jsonify({"error": "already_registered", "message": "You are already registered. Please sign in with your password."}), 200
+        return jsonify({
+            "error": "already_registered",
+            "message": "You are already registered. Please sign in with your password."
+        }), 200
 
     otp = set_otp(student)
     app = current_app._get_current_object()
     threading.Thread(target=_send_async, args=(app, student.email, student.name, otp), daemon=True).start()
     return jsonify({"message": "OTP sent to your registered email.", "student_id": student.id}), 200
 
+
+# ─── Forgot Password — sends OTP to registered students ──────────────────────
+
+@student_auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    data    = request.get_json() or {}
+    email   = sanitize(data.get("email",   "")).lower()
+    roll_no = normalize_roll(sanitize(data.get("roll_no", "")))
+
+    if not email or not roll_no:
+        return jsonify({"error": "Email and Roll Number are required."}), 400
+
+    student = Student.query.filter(
+        Student.email == email,
+        db.func.upper(Student.roll_no) == roll_no
+    ).first()
+
+    if not student:
+        roll_with_o    = roll_no.replace("0", "O")
+        roll_with_zero = roll_no.replace("O", "0")
+        student = Student.query.filter(
+            Student.email == email,
+            db.func.upper(Student.roll_no).in_([roll_no, roll_with_o, roll_with_zero])
+        ).first()
+
+    if not student:
+        return jsonify({"error": "Invalid details. Email or Roll Number does not match our records."}), 404
+
+    if not student.is_registered:
+        return jsonify({"error": "This account is not registered yet. Please register first."}), 400
+
+    otp = set_otp(student)
+    app = current_app._get_current_object()
+    threading.Thread(target=_send_async, args=(app, student.email, student.name, otp), daemon=True).start()
+    return jsonify({"message": "OTP sent to your registered email.", "student_id": student.id}), 200
+
+
+# ─── Verify OTP ───────────────────────────────────────────────────────────────
 
 @student_auth_bp.route("/verify-otp", methods=["POST"])
 def verify_otp_route():
@@ -87,6 +130,8 @@ def verify_otp_route():
     return jsonify({"message": msg, "student_id": student.id}), 200
 
 
+# ─── Resend OTP ───────────────────────────────────────────────────────────────
+
 @student_auth_bp.route("/resend-otp", methods=["POST"])
 def resend_otp():
     data    = request.get_json() or {}
@@ -98,6 +143,8 @@ def resend_otp():
     threading.Thread(target=_send_async, args=(app, student.email, student.name, otp), daemon=True).start()
     return jsonify({"message": "New OTP sent."}), 200
 
+
+# ─── Set Password (new registration) ─────────────────────────────────────────
 
 @student_auth_bp.route("/set-password", methods=["POST"])
 def set_password():
@@ -122,6 +169,27 @@ def set_password():
     return jsonify({"message": "Password set.", "access_token": token, "student": student.to_dict()}), 200
 
 
+# ─── Reset Password (forgot password flow) ───────────────────────────────────
+
+@student_auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    data    = request.get_json() or {}
+    student = Student.query.get(data.get("student_id"))
+    if not student:
+        return jsonify({"error": "Student not found."}), 404
+    password = data.get("password", "")
+    if password != data.get("confirm_password", ""):
+        return jsonify({"error": "Passwords do not match."}), 400
+    valid, msg = validate_password_strength(password)
+    if not valid:
+        return jsonify({"error": msg}), 400
+    student.password_hash = hash_password(password)
+    db.session.commit()
+    return jsonify({"message": "Password reset successfully."}), 200
+
+
+# ─── Login ────────────────────────────────────────────────────────────────────
+
 @student_auth_bp.route("/login", methods=["POST"])
 def returning_login():
     data     = request.get_json() or {}
@@ -137,6 +205,8 @@ def returning_login():
     token = create_access_token(identity=str(student.id))
     return jsonify({"message": "Login successful.", "access_token": token, "student": student.to_dict()}), 200
 
+
+# ─── Me / Profile ─────────────────────────────────────────────────────────────
 
 @student_auth_bp.route("/me", methods=["GET"])
 @jwt_required()
@@ -172,20 +242,3 @@ def update_profile():
         student.password_hash = hash_password(new_password)
     db.session.commit()
     return jsonify({"message": "Profile updated.", "student": student.to_dict()}), 200
-
-
-@student_auth_bp.route("/reset-password", methods=["POST"])
-def reset_password():
-    data    = request.get_json() or {}
-    student = Student.query.get(data.get("student_id"))
-    if not student:
-        return jsonify({"error": "Student not found."}), 404
-    password = data.get("password", "")
-    if password != data.get("confirm_password", ""):
-        return jsonify({"error": "Passwords do not match."}), 400
-    valid, msg = validate_password_strength(password)
-    if not valid:
-        return jsonify({"error": msg}), 400
-    student.password_hash = hash_password(password)
-    db.session.commit()
-    return jsonify({"message": "Password reset successfully."}), 200

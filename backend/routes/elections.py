@@ -1,3 +1,4 @@
+import threading
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
@@ -11,6 +12,20 @@ def is_admin():
     return str(get_jwt_identity()).startswith("admin:")
 
 
+def get_student():
+    """
+    Student JWT identity = str(student.id)  (set in student_auth.py)
+    Admin  JWT identity  = "admin:<id>"
+    """
+    identity = get_jwt_identity()
+    if str(identity).startswith("admin:"):
+        return None
+    try:
+        return Student.query.get(int(identity))
+    except (ValueError, TypeError):
+        return None
+
+
 def broadcast(title, message):
     try:
         from utils.helpers import send_election_notification_email
@@ -18,13 +33,17 @@ def broadcast(title, message):
         for s in students:
             if not Notification.query.filter_by(student_id=s.id, title=title).first():
                 db.session.add(Notification(student_id=s.id, title=title, message=message))
-                try:
-                    send_election_notification_email(s.email, s.name or "", title, message)
-                except Exception as e:
-                    print(f"[NOTIFY ERROR] {e}")
+            try:
+                send_election_notification_email(s.email, s.name or "", title, message)
+            except Exception as e:
+                print(f"[NOTIFY ERROR] {s.email}: {e}")
         db.session.commit()
     except Exception as e:
         print(f"[BROADCAST ERROR] {e}")
+
+
+def broadcast_bg(title, message):
+    threading.Thread(target=broadcast, args=(title, message), daemon=True).start()
 
 
 def tally(election):
@@ -70,25 +89,20 @@ def create_election():
     if end_dt <= start_dt:
         return jsonify({"error": "end_time must be after start_time."}), 400
     e = Election(
-        title=title,
-        description=data.get("description", ""),
-        start_time=start_dt,
-        end_time=end_dt
+        title=title, description=data.get("description", ""),
+        start_time=start_dt, end_time=end_dt
     )
     db.session.add(e)
     db.session.commit()
-    try:
-        broadcast(
-            f"New Election: {title}",
-            f"A new election '{title}' is scheduled from "
-            f"{start_dt.strftime('%d %b %Y %H:%M')} to {end_dt.strftime('%d %b %Y %H:%M')}."
-        )
-    except Exception as ex:
-        print(f"[BROADCAST ERROR] {ex}")
+    broadcast_bg(
+        f"New Election: {title}",
+        f"A new election '{title}' is scheduled from "
+        f"{start_dt.strftime('%d %b %Y %H:%M')} to {end_dt.strftime('%d %b %Y %H:%M')}."
+    )
     return jsonify({"message": "Election created.", "election_id": e.id, "election": e.to_dict()}), 201
 
 
-# ─── Get / Edit / Delete Election ────────────────────────────────────────────
+# ─── List / Get / Edit / Delete ───────────────────────────────────────────────
 
 @election_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -121,15 +135,15 @@ def edit_election(eid):
     if e.status == "ended":
         return jsonify({"error": "Ended elections cannot be edited."}), 400
     data = request.get_json()
-    e.title       = data.get("title",       e.title).strip()
+    e.title       = data.get("title", e.title).strip()
     e.description = data.get("description", e.description)
     if e.status == "upcoming":
         try:
             if data.get("start_time"):
-                start_str = data["start_time"].replace("T"," ").split(".")[0][:16]
+                start_str = data["start_time"].replace("T", " ").split(".")[0][:16]
                 e.start_time = datetime.strptime(start_str, "%Y-%m-%d %H:%M")
             if data.get("end_time"):
-                end_str = data["end_time"].replace("T"," ").split(".")[0][:16]
+                end_str = data["end_time"].replace("T", " ").split(".")[0][:16]
                 e.end_time = datetime.strptime(end_str, "%Y-%m-%d %H:%M")
             if e.end_time <= e.start_time:
                 return jsonify({"error": "End time must be after start time."}), 400
@@ -139,7 +153,7 @@ def edit_election(eid):
     return jsonify({"message": "Election updated.", "election": e.to_dict()}), 200
 
 
-@election_bp.route("/<int:eid>/delete", methods=["DELETE"])
+@election_bp.route("/<int:eid>", methods=["DELETE"])
 @jwt_required()
 def delete_election(eid):
     if not is_admin():
@@ -150,12 +164,11 @@ def delete_election(eid):
     return jsonify({"message": "Election deleted."}), 200
 
 
-# ─── Candidates — BY ELECTION ID (new routes frontend needs) ─────────────────
+# ─── Candidates ───────────────────────────────────────────────────────────────
 
 @election_bp.route("/<int:eid>/candidates", methods=["GET"])
 @jwt_required()
 def get_candidates_by_election(eid):
-    """GET /api/elections/<eid>/candidates — list all candidates for an election."""
     e = Election.query.get_or_404(eid)
     return jsonify({"candidates": [c.to_dict() for c in e.candidates]}), 200
 
@@ -163,7 +176,6 @@ def get_candidates_by_election(eid):
 @election_bp.route("/<int:eid>/candidates", methods=["POST"])
 @jwt_required()
 def add_candidate_by_election(eid):
-    """POST /api/elections/<eid>/candidates — add candidate to an election."""
     if not is_admin():
         return jsonify({"error": "Admin access required."}), 403
     Election.query.get_or_404(eid)
@@ -192,7 +204,6 @@ def add_candidate_by_election(eid):
 @election_bp.route("/<int:eid>/candidates/<int:cid>", methods=["PUT"])
 @jwt_required()
 def edit_candidate_by_election(eid, cid):
-    """PUT /api/elections/<eid>/candidates/<cid> — edit a candidate."""
     if not is_admin():
         return jsonify({"error": "Admin access required."}), 403
     c = Candidate.query.filter_by(id=cid, election_id=eid).first_or_404()
@@ -211,7 +222,6 @@ def edit_candidate_by_election(eid, cid):
 @election_bp.route("/<int:eid>/candidates/<int:cid>", methods=["DELETE"])
 @jwt_required()
 def delete_candidate_by_election(eid, cid):
-    """DELETE /api/elections/<eid>/candidates/<cid> — remove a candidate."""
     if not is_admin():
         return jsonify({"error": "Admin access required."}), 403
     c = Candidate.query.filter_by(id=cid, election_id=eid).first_or_404()
@@ -219,8 +229,6 @@ def delete_candidate_by_election(eid, cid):
     db.session.commit()
     return jsonify({"message": "Candidate deleted."}), 200
 
-
-# ─── Old flat candidate routes (kept for backward compatibility) ──────────────
 
 @election_bp.route("/candidates", methods=["POST"])
 @jwt_required()
@@ -291,114 +299,193 @@ def delete_candidate(cid):
 
 # ─── Election Actions ─────────────────────────────────────────────────────────
 
-@election_bp.route("/<int:eid>/start", methods=["POST", "PATCH"])
+@election_bp.route("/<int:eid>/start", methods=["POST"])
 @jwt_required()
 def start_election(eid):
-    if not is_admin():
-        return jsonify({"error": "Admin access required."}), 403
-    e = Election.query.get_or_404(eid)
-    if e.status != "upcoming":
-        return jsonify({"error": f"Election is '{e.status}', not upcoming."}), 400
-    e.status = "ongoing"
-    db.session.commit()
-    broadcast(f"Election Started: {e.title}",
-              f"'{e.title}' is now LIVE! Vote before {e.end_time.strftime('%d %b %Y %H:%M')}.")
-    return jsonify({"message": "Election started.", "election": e.to_dict()}), 200
+    try:
+        if not is_admin():
+            return jsonify({"error": "Admin access required."}), 403
+        e = Election.query.get_or_404(eid)
+        if e.status != "upcoming":
+            return jsonify({"error": f"Cannot start an election that is already '{e.status}'."}), 400
+        e.status = "ongoing"
+        db.session.commit()
+        broadcast_bg(
+            f"Election Started: {e.title}",
+            f"Voting for '{e.title}' is now open! Cast your vote before {e.end_time.strftime('%d %b %Y %H:%M')}."
+        )
+        return jsonify({"message": "Election started.", "election": e.to_dict()}), 200
+    except Exception as ex:
+        db.session.rollback()
+        print("START ELECTION ERROR:", ex)
+        return jsonify({"error": "Failed to start election."}), 500
 
 
 @election_bp.route("/<int:eid>/end", methods=["POST", "PATCH"])
 @jwt_required()
 def end_election(eid):
-    if not is_admin():
-        return jsonify({"error": "Admin access required."}), 403
-    e = Election.query.get_or_404(eid)
-    if e.status != "ongoing":
-        return jsonify({"error": "Only ongoing elections can be ended."}), 400
-    e.status = "ended"
-    db.session.commit()
-    results = tally(e)
-    winner  = results[0] if results else None
-    for s in Student.query.filter_by(is_registered=True).all():
-        msg = (f"Winner of '{e.title}': {winner['name']} with {winner['votes']} votes."
-               if winner else f"'{e.title}' ended with no votes.")
-        db.session.add(Notification(student_id=s.id, title=f"Results: {e.title}", message=msg))
-    db.session.commit()
-    return jsonify({"message": "Election ended.", "election": e.to_dict(), "results": results}), 200
+    try:
+        if not is_admin():
+            return jsonify({"error": "Admin access required."}), 403
+        e = Election.query.get_or_404(eid)
+        e.status = "ended"
+        db.session.commit()
+        return jsonify({
+            "message": "Election ended successfully.",
+            "results": tally(e)
+        }), 200
+    except Exception as ex:
+        db.session.rollback()
+        print("END ELECTION ERROR:", ex)
+        return jsonify({"error": "Failed to end election."}), 500
 
 
-@election_bp.route("/<int:eid>/cancel", methods=["POST", "PATCH"])
+@election_bp.route("/<int:eid>/cancel", methods=["POST"])
 @jwt_required()
 def cancel_election(eid):
-    if not is_admin():
-        return jsonify({"error": "Admin access required."}), 403
-    e = Election.query.get_or_404(eid)
-    if e.status == "ended":
-        return jsonify({"error": "Cannot cancel an ended election."}), 400
-    e.status = "cancelled"
-    db.session.commit()
-    broadcast(f"Election Cancelled: {e.title}", f"The election '{e.title}' has been cancelled.")
-    return jsonify({"message": "Election cancelled.", "election": e.to_dict()}), 200
-
-
-# ─── Voting ───────────────────────────────────────────────────────────────────
-
-@election_bp.route("/<int:eid>/check-voted", methods=["GET"])
-@jwt_required()
-def check_voted(eid):
-    identity = get_jwt_identity()
-    if str(identity).startswith("admin:"):
-        return jsonify({"voted": False}), 200
-    vote = Vote.query.filter_by(student_id=int(identity), election_id=eid).first()
-    if vote:
-        candidate = Candidate.query.get(vote.candidate_id)
-        return jsonify({"voted": True, "candidate_name": candidate.name if candidate else "Unknown"}), 200
-    return jsonify({"voted": False}), 200
-
-
-@election_bp.route("/<int:eid>/vote", methods=["POST"])
-@jwt_required()
-def cast_vote(eid):
-    identity = get_jwt_identity()
-    if str(identity).startswith("admin:"):
-        return jsonify({"error": "Admins cannot vote."}), 403
-    student_id = int(identity)
-    e = Election.query.get_or_404(eid)
-    if e.status != "ongoing":
-        return jsonify({"error": "Voting is not open for this election."}), 400
-    if Vote.query.filter_by(student_id=student_id, election_id=eid).first():
-        return jsonify({"error": "You have already voted in this election."}), 409
-    cid = request.get_json().get("candidate_id")
-    c = Candidate.query.filter_by(id=cid, election_id=eid).first()
-    if not c:
-        return jsonify({"error": "Invalid candidate."}), 400
-    db.session.add(Vote(student_id=student_id, election_id=eid, candidate_id=cid))
-    db.session.commit()
-    return jsonify({"message": f"Vote cast for {c.name}."}), 201
-
-
-@election_bp.route("/<int:eid>/results", methods=["GET"])
-@jwt_required()
-def get_results(eid):
-    e = Election.query.get_or_404(eid)
-    if e.status != "ended":
-        return jsonify({"error": "Results available only after election ends."}), 400
-    return jsonify({"election": e.title, "results": tally(e)}), 200
+    try:
+        if not is_admin():
+            return jsonify({"error": "Admin access required."}), 403
+        e = Election.query.get_or_404(eid)
+        if e.status in ("ended", "cancelled"):
+            return jsonify({"error": f"Cannot cancel an election that is already '{e.status}'."}), 400
+        e.status = "cancelled"
+        db.session.commit()
+        broadcast_bg(
+            f"Election Cancelled: {e.title}",
+            f"The election '{e.title}' has been cancelled by the administration."
+        )
+        return jsonify({"message": "Election cancelled.", "election": e.to_dict()}), 200
+    except Exception as ex:
+        db.session.rollback()
+        print("CANCEL ELECTION ERROR:", ex)
+        return jsonify({"error": "Failed to cancel election."}), 500
 
 
 # ─── Turnout ──────────────────────────────────────────────────────────────────
 
 @election_bp.route("/<int:eid>/turnout", methods=["GET"])
 @jwt_required()
-def voter_turnout(eid):
-    if not is_admin():
-        return jsonify({"error": "Admin access required."}), 403
-    e = Election.query.get_or_404(eid)
-    total = Student.query.filter_by(is_registered=True).count()
-    cast  = len(e.votes)
-    return jsonify({
-        "election":                  e.title,
-        "total_registered_students": total,
-        "votes_cast":                cast,
-        "turnout_percentage":        round(cast / total * 100, 2) if total else 0,
-        "results":                   tally(e),
-    }), 200
+def election_turnout(eid):
+    try:
+        if not is_admin():
+            return jsonify({"error": "Admin access required."}), 403
+        election = Election.query.get_or_404(eid)
+        total_students = Student.query.filter_by(is_registered=True).count()
+        votes_cast = Vote.query.filter_by(election_id=eid).count()
+        percentage = round((votes_cast / total_students * 100), 1) if total_students > 0 else 0.0
+        return jsonify({
+            "election_id": eid,
+            "total_registered_students": total_students,
+            "votes_cast": votes_cast,
+            "turnout_percentage": percentage,
+            "results": tally(election),
+        }), 200
+    except Exception as ex:
+        print("TURNOUT ERROR:", ex)
+        return jsonify({"error": "Failed to load turnout."}), 500
+
+
+# ─── Check Already Voted ──────────────────────────────────────────────────────
+
+@election_bp.route("/<int:eid>/check-voted", methods=["GET"])
+@jwt_required()
+def check_voted(eid):
+    try:
+        if is_admin():
+            return jsonify({"voted": False}), 200
+
+        # FIX: identity = str(student.id), look up by PK not email
+        student = get_student()
+        if not student:
+            return jsonify({"error": "Student not found."}), 404
+
+        existing_vote = Vote.query.filter_by(
+            student_id=student.id,
+            election_id=eid
+        ).first()
+
+        if existing_vote:
+            candidate = Candidate.query.get(existing_vote.candidate_id)
+            return jsonify({
+                "voted": True,
+                "candidate_name": candidate.name if candidate else None
+            }), 200
+
+        return jsonify({"voted": False}), 200
+
+    except Exception as e:
+        print("CHECK VOTED ERROR:", e)
+        return jsonify({"error": "Failed to check vote status."}), 500
+
+
+# ─── Cast Vote ────────────────────────────────────────────────────────────────
+
+@election_bp.route("/<int:eid>/vote", methods=["POST"])
+@jwt_required()
+def cast_vote(eid):
+    try:
+        if is_admin():
+            return jsonify({"error": "Admins cannot vote."}), 403
+
+        # FIX: identity = str(student.id), look up by PK not email
+        student = get_student()
+        if not student:
+            return jsonify({"error": "Student not found. Please log in again."}), 404
+
+        # sync statuses first, then re-fetch election
+        sync_all_statuses()
+        election = Election.query.get_or_404(eid)
+
+        if election.status != "ongoing":
+            return jsonify({
+                "error": f"This election is not currently accepting votes (status: {election.status})."
+            }), 400
+
+        existing_vote = Vote.query.filter_by(
+            student_id=student.id,
+            election_id=eid
+        ).first()
+        if existing_vote:
+            return jsonify({"error": "You have already voted in this election."}), 400
+
+        data = request.get_json()
+        candidate_id = data.get("candidate_id")
+        if not candidate_id:
+            return jsonify({"error": "candidate_id is required."}), 400
+
+        candidate = Candidate.query.filter_by(id=candidate_id, election_id=eid).first()
+        if not candidate:
+            return jsonify({"error": "Invalid candidate for this election."}), 404
+
+        vote = Vote(
+            student_id=student.id,
+            election_id=eid,
+            candidate_id=candidate.id
+        )
+        db.session.add(vote)
+        db.session.commit()
+
+        return jsonify({"message": "Vote cast successfully."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print("CAST VOTE ERROR:", e)
+        return jsonify({"error": "Failed to cast vote."}), 500
+
+
+# ─── Election Results ─────────────────────────────────────────────────────────
+
+@election_bp.route("/<int:eid>/results", methods=["GET"])
+@jwt_required()
+def election_results(eid):
+    try:
+        election = Election.query.get_or_404(eid)
+        results = tally(election)
+        return jsonify({
+            "election": election.to_dict(),
+            "results": results
+        }), 200
+    except Exception as e:
+        print("RESULT ERROR:", e)
+        return jsonify({"error": "Failed to load results."}), 500

@@ -34,7 +34,10 @@ export default function AdminCreateElection() {
         end_time:    endTime,
       });
       toast.success("Election created! Now add candidates.");
-      navigate(`/admin/elections/${res.data.election_id}/candidates`);
+      // Navigate to candidates page — dashboard will refresh when user comes back
+      navigate(`/admin/elections/${res.data.election_id}/candidates`, {
+        state: { fromCreate: true }
+      });
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to create election.");
     } finally {
